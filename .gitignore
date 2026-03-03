@@ -19,6 +19,7 @@
 
 # production
 /build
+/dist/
 
 # misc
 .DS_Store
@@ -39,3 +40,28 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# electron build artifacts (prevent 30GB build crash)
+*.exe
+*.dll
+*.dat
+*.pak
+*.bin
+/locales/
+
+# allow build resources (7za.exe for VOICEVOX extraction)
+!/resources/
+/resources/*
+!/resources/7za.exe
+
+# video output
+/output/
+
+# generated audio
+/public/audio/narration-*.wav
+
+# voicevox engine (downloaded at runtime)
+/.voicevox-engine/
+
+# remotion bundle cache
+/.remotion/

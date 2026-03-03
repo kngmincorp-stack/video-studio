@@ -1,0 +1,63 @@
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "com.videostudio.app",
+  "productName": "Video Studio",
+  "directories": {
+    "output": "dist/installer"
+  },
+  "files": [
+    "dist/electron/**/*"
+  ],
+  "extraResources": [
+    {
+      "from": ".next/standalone",
+      "to": "app/.next/standalone",
+      "filter": ["**/*", "!node_modules"]
+    },
+    {
+      "from": ".next/standalone/node_modules",
+      "to": "app/.next/standalone/node_modules",
+      "filter": ["**/*"]
+    },
+    {
+      "from": ".next/static",
+      "to": "app/.next/standalone/.next/static",
+      "filter": ["**/*"]
+    },
+    {
+      "from": "public",
+      "to": "app/.next/standalone/public",
+      "filter": ["**/*"]
+    },
+    {
+      "from": ".env.local",
+      "to": "app/.env.local"
+    },
+    {
+      "from": "resources/7za.exe",
+      "to": "app/resources/7za.exe"
+    }
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": null
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Video Studio"
+  },
+  "publish": {
+    "provider": "github",
+    "owner": "kngmincorp-stack",
+    "repo": "video-studio"
+  }
+}
