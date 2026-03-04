@@ -1,15 +1,18 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { Sidebar } from "@/components/sidebar/Sidebar";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import type { Message } from "@/components/chat/ChatMessage";
 import { useVideoProject } from "@/hooks/useVideoProject";
+import { useTranscription } from "@/hooks/useTranscription";
 import { VideoBlueprintSchema, type DefaultNarration } from "@/types/schema";
 import { ApiKeySetup } from "@/components/setup/ApiKeySetup";
 import { VoicevoxSetup } from "@/components/setup/VoicevoxSetup";
 import { UpdateNotification } from "@/components/update/UpdateNotification";
+import { TranscribePanel } from "@/components/transcribe/TranscribePanel";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Remotion Player must be loaded client-side only
 const VideoPreview = dynamic(
@@ -47,6 +50,10 @@ export default function Home() {
   const [needsSetup, setNeedsSetup] = useState(false);
   const [setupChecked, setSetupChecked] = useState(false);
   const [showVoicevoxSetup, setShowVoicevoxSetup] = useState(false);
+  const [activeTab, setActiveTab] = useState("chat");
+
+  const transcription = useTranscription();
+  const pendingNarrationRef = useRef<string | null>(null);
 
   // Check if API key is configured (Electron only)
   useEffect(() => {
@@ -163,6 +170,24 @@ export default function Home() {
     [blueprint, messages, setBlueprint]
   );
 
+  const handleApplyToNarration = useCallback(
+    (text: string) => {
+      const content = `以下の文字起こしテキストをナレーションとしてシーンに適用してください:\n\n${text}`;
+      pendingNarrationRef.current = content;
+      setActiveTab("chat");
+    },
+    []
+  );
+
+  // Send pending narration message after tab switch
+  useEffect(() => {
+    if (activeTab === "chat" && pendingNarrationRef.current) {
+      const content = pendingNarrationRef.current;
+      pendingNarrationRef.current = null;
+      handleSend(content);
+    }
+  }, [activeTab, handleSend]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -222,13 +247,40 @@ export default function Home() {
           <VideoPreview blueprint={blueprint} />
         </div>
 
-        {/* Chat Panel - bottom half */}
+        {/* Bottom Panel - tabbed */}
         <div className="h-[45%] min-h-[280px]">
-          <ChatPanel
-            messages={messages}
-            onSend={handleSend}
-            isLoading={isLoading}
-          />
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex h-full flex-col">
+            <TabsList className="shrink-0 w-full justify-start rounded-none border-b border-border bg-transparent px-2 h-9">
+              <TabsTrigger value="chat" className="text-xs data-[state=active]:bg-muted">
+                チャット
+                {isLoading && (
+                  <span className="ml-1.5 text-[10px] text-muted-foreground animate-pulse">
+                    生成中...
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="transcribe" className="text-xs data-[state=active]:bg-muted">
+                文字起こし
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="chat" className="flex-1 min-h-0 mt-0">
+              <ChatPanel
+                messages={messages}
+                onSend={handleSend}
+                isLoading={isLoading}
+              />
+            </TabsContent>
+            <TabsContent value="transcribe" className="flex-1 min-h-0 mt-0">
+              <TranscribePanel
+                state={transcription.state}
+                onSelectAndTranscribe={transcription.selectAndTranscribe}
+                onUpdateSegment={transcription.updateSegment}
+                onReset={transcription.reset}
+                getFullText={transcription.getFullText}
+                onApplyToNarration={handleApplyToNarration}
+              />
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </div>

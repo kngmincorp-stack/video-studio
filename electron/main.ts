@@ -15,7 +15,7 @@ const ROOT = isProd
   : path.resolve(__dirname, "..", "..");
 
 const ENV_PATH = isProd
-  ? path.join(app.getPath("userData"), ".env.local")
+  ? path.join(path.dirname(app.getPath("exe")), ".env.local")
   : path.join(ROOT, ".env.local");
 
 // On first packaged launch, copy bundled .env.local to userData if missing
@@ -192,6 +192,45 @@ ipcMain.handle("select-directory", async () => {
     properties: ["openDirectory"],
   });
   return result.canceled ? null : result.filePaths[0];
+});
+
+ipcMain.handle("select-media-file", async () => {
+  if (!mainWindow) return null;
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ["openFile"],
+    filters: [
+      {
+        name: "メディアファイル",
+        extensions: ["mp3", "wav", "m4a", "ogg", "flac", "mp4", "webm", "mov"],
+      },
+    ],
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  const filePath = result.filePaths[0];
+  const stats = fs.statSync(filePath);
+  const ext = path.extname(filePath).toLowerCase().slice(1);
+  const mimeMap: Record<string, string> = {
+    mp3: "audio/mpeg",
+    wav: "audio/wav",
+    m4a: "audio/mp4",
+    ogg: "audio/ogg",
+    flac: "audio/flac",
+    mp4: "video/mp4",
+    webm: "video/webm",
+    mov: "video/quicktime",
+  };
+  return {
+    path: filePath,
+    name: path.basename(filePath),
+    size: stats.size,
+    mimeType: mimeMap[ext] || "application/octet-stream",
+  };
+});
+
+ipcMain.handle("read-file-as-base64", async (_event, filePath: string) => {
+  if (!fs.existsSync(filePath)) return null;
+  const buffer = fs.readFileSync(filePath);
+  return buffer.toString("base64");
 });
 
 // --- App lifecycle ---

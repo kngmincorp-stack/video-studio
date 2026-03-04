@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   saveApiKey: (key: string) => ipcRenderer.invoke("save-api-key", key),
   getEnv: (key: string) => ipcRenderer.invoke("get-env", key),
   selectDirectory: () => ipcRenderer.invoke("select-directory"),
+  selectMediaFile: () => ipcRenderer.invoke("select-media-file"),
+  readFileAsBase64: (filePath: string) => ipcRenderer.invoke("read-file-as-base64", filePath),
   voicevox: {
     getStatus: () => ipcRenderer.invoke("voicevox:get-status"),
     startDownload: () => ipcRenderer.invoke("voicevox:start-download"),

@@ -37,11 +37,20 @@ export interface UpdaterAPI {
   onStatus: (callback: (status: UpdateStatus) => void) => () => void;
 }
 
+export interface MediaFileInfo {
+  path: string;
+  name: string;
+  size: number;
+  mimeType: string;
+}
+
 export interface ElectronAPI {
   getApiKeyStatus: () => Promise<{ hasKey: boolean }>;
   saveApiKey: (key: string) => Promise<{ success: boolean }>;
   getEnv: (key: string) => Promise<string | null>;
   selectDirectory: () => Promise<string | null>;
+  selectMediaFile: () => Promise<MediaFileInfo | null>;
+  readFileAsBase64: (filePath: string) => Promise<string | null>;
   voicevox: VoicevoxAPI;
   updater: UpdaterAPI;
 }

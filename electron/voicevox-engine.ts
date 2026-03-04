@@ -15,7 +15,8 @@ const isProd = app.isPackaged;
 
 function getEngineDir(): string {
   if (isProd) {
-    return path.join(app.getPath("userData"), "voicevox-engine");
+    // Store alongside the installed exe (e.g. D:\...\Video Studio\voicevox-engine)
+    return path.join(path.dirname(app.getPath("exe")), "voicevox-engine");
   }
   return path.join(
     path.resolve(__dirname, "..", ".."),
@@ -179,15 +180,37 @@ export async function extractEngine(
       (error) => {
         if (error) {
           reject(new Error(`Extraction failed: ${error.message}`));
-        } else {
-          // Clean up archive after successful extraction
-          try {
-            fs.unlinkSync(archivePath);
-          } catch {
-            // ignore cleanup errors
-          }
-          resolve();
+          return;
         }
+
+        // 7z extracts into a subfolder (e.g. windows-cpu/). Move contents up.
+        try {
+          const entries = fs.readdirSync(engineDir);
+          const subDir = entries.find((e) => {
+            const full = path.join(engineDir, e);
+            return fs.statSync(full).isDirectory() && e !== "." && e !== "..";
+          });
+          if (subDir) {
+            const subDirPath = path.join(engineDir, subDir);
+            for (const item of fs.readdirSync(subDirPath)) {
+              fs.renameSync(
+                path.join(subDirPath, item),
+                path.join(engineDir, item)
+              );
+            }
+            fs.rmdirSync(subDirPath);
+          }
+        } catch (moveErr) {
+          console.warn("[VoicevoxEngine] Could not flatten extracted dir:", moveErr);
+        }
+
+        // Clean up archive after successful extraction
+        try {
+          fs.unlinkSync(archivePath);
+        } catch {
+          // ignore cleanup errors
+        }
+        resolve();
       }
     );
 

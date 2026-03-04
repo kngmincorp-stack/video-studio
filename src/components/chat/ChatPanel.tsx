@@ -21,16 +21,6 @@ export function ChatPanel({ messages, onSend, isLoading }: ChatPanelProps) {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="flex items-center border-b border-border px-4 py-2">
-        <h2 className="text-sm font-medium">チャット</h2>
-        {isLoading && (
-          <span className="ml-2 text-xs text-muted-foreground animate-pulse">
-            生成中...
-          </span>
-        )}
-      </div>
-
       {/* Messages */}
       <ScrollArea className="flex-1 px-4 py-3">
         {messages.length === 0 ? (
