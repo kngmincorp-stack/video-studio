@@ -23,22 +23,36 @@ function getEngineDir(): string {
   );
 }
 
-// Migrate engine from old location (install dir) to userData
-function migrateEngineDir(): void {
-  if (!isProd) return;
-  const oldDir = path.join(path.dirname(app.getPath("exe")), "voicevox-engine");
-  const newDir = getEngineDir();
-  if (fs.existsSync(path.join(oldDir, "run.exe")) && !fs.existsSync(path.join(newDir, "run.exe"))) {
-    try {
-      fs.renameSync(oldDir, newDir);
-      console.log("[VoicevoxEngine] Migrated engine to userData");
-    } catch {
-      console.warn("[VoicevoxEngine] Migration failed, will re-download if needed");
+// Flatten: if run.exe is inside a subfolder (e.g. windows-cpu/), move everything up
+function flattenEngineDir(): void {
+  const engineDir = getEngineDir();
+  if (fs.existsSync(path.join(engineDir, "run.exe"))) return; // already flat
+  try {
+    const entries = fs.readdirSync(engineDir);
+    const subDir = entries.find((e) => {
+      const full = path.join(engineDir, e);
+      return fs.statSync(full).isDirectory() && fs.existsSync(path.join(full, "run.exe"));
+    });
+    if (subDir) {
+      const subDirPath = path.join(engineDir, subDir);
+      for (const item of fs.readdirSync(subDirPath)) {
+        const src = path.join(subDirPath, item);
+        const dest = path.join(engineDir, item);
+        if (!fs.existsSync(dest)) {
+          fs.renameSync(src, dest);
+        }
+      }
+      fs.rmSync(subDirPath, { recursive: true, force: true });
+      console.log("[VoicevoxEngine] Flattened engine subdirectory");
     }
+  } catch (err) {
+    console.warn("[VoicevoxEngine] Flatten failed:", err);
   }
 }
 
-migrateEngineDir();
+if (isProd) {
+  flattenEngineDir();
+}
 
 function get7zaPath(): string {
   if (isProd) {
