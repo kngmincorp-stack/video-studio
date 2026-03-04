@@ -15,14 +15,30 @@ const isProd = app.isPackaged;
 
 function getEngineDir(): string {
   if (isProd) {
-    // Store alongside the installed exe (e.g. D:\...\Video Studio\voicevox-engine)
-    return path.join(path.dirname(app.getPath("exe")), "voicevox-engine");
+    return path.join(app.getPath("userData"), "voicevox-engine");
   }
   return path.join(
     path.resolve(__dirname, "..", ".."),
     ".voicevox-engine"
   );
 }
+
+// Migrate engine from old location (install dir) to userData
+function migrateEngineDir(): void {
+  if (!isProd) return;
+  const oldDir = path.join(path.dirname(app.getPath("exe")), "voicevox-engine");
+  const newDir = getEngineDir();
+  if (fs.existsSync(path.join(oldDir, "run.exe")) && !fs.existsSync(path.join(newDir, "run.exe"))) {
+    try {
+      fs.renameSync(oldDir, newDir);
+      console.log("[VoicevoxEngine] Migrated engine to userData");
+    } catch {
+      console.warn("[VoicevoxEngine] Migration failed, will re-download if needed");
+    }
+  }
+}
+
+migrateEngineDir();
 
 function get7zaPath(): string {
   if (isProd) {

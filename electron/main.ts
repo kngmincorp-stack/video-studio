@@ -14,15 +14,26 @@ const ROOT = isProd
   ? path.join(process.resourcesPath, "app")
   : path.resolve(__dirname, "..", "..");
 
+const USER_DATA = app.getPath("userData");
 const ENV_PATH = isProd
-  ? path.join(path.dirname(app.getPath("exe")), ".env.local")
+  ? path.join(USER_DATA, ".env.local")
   : path.join(ROOT, ".env.local");
 
-// On first packaged launch, copy bundled .env.local to userData if missing
+// Migrate .env.local from old location (install dir) to userData
 if (isProd) {
-  const bundledEnv = path.join(process.resourcesPath, "app", ".env.local");
-  if (!fs.existsSync(ENV_PATH) && fs.existsSync(bundledEnv)) {
-    fs.copyFileSync(bundledEnv, ENV_PATH);
+  const oldEnvPath = path.join(path.dirname(app.getPath("exe")), ".env.local");
+  if (!fs.existsSync(ENV_PATH) && fs.existsSync(oldEnvPath)) {
+    fs.mkdirSync(USER_DATA, { recursive: true });
+    fs.copyFileSync(oldEnvPath, ENV_PATH);
+    console.log("[Electron] Migrated .env.local to userData");
+  }
+  // Fallback: copy bundled template on first launch
+  if (!fs.existsSync(ENV_PATH)) {
+    const bundledEnv = path.join(process.resourcesPath, "app", ".env.local");
+    if (fs.existsSync(bundledEnv)) {
+      fs.mkdirSync(USER_DATA, { recursive: true });
+      fs.copyFileSync(bundledEnv, ENV_PATH);
+    }
   }
 }
 
