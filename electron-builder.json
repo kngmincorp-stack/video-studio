@@ -58,6 +58,7 @@
   "publish": {
     "provider": "github",
     "owner": "kngmincorp-stack",
-    "repo": "video-studio"
+    "repo": "video-studio",
+    "releaseType": "release"
   }
 }
