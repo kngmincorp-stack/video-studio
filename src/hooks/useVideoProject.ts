@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import type { VideoBlueprint, Format } from "@/types/schema";
+import type { VideoBlueprint, Format, Scene } from "@/types/schema";
 import { createEmptyBlueprint, FORMAT_PRESETS } from "@/types/schema";
 
 const MAX_UNDO_STACK = 50;
@@ -64,6 +64,19 @@ export function useVideoProject() {
     [setBlueprint]
   );
 
+  const updateScene = useCallback(
+    (sceneId: string, updater: (scene: Scene) => Scene) => {
+      setBlueprint((prev) => {
+        const scenes = prev.scenes.map((s) =>
+          s.id === sceneId ? updater(s) : s
+        );
+        const totalDurationFrames = scenes.reduce((sum, s) => sum + s.durationFrames, 0);
+        return { ...prev, scenes, totalDurationFrames };
+      });
+    },
+    [setBlueprint]
+  );
+
   return {
     blueprint,
     setBlueprint,
@@ -72,5 +85,6 @@ export function useVideoProject() {
     canUndo,
     canRedo,
     changeFormat,
+    updateScene,
   };
 }

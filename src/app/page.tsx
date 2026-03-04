@@ -2,8 +2,8 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
+import type { PlayerRef } from "@remotion/player";
 import { Sidebar } from "@/components/sidebar/Sidebar";
-import { ChatPanel } from "@/components/chat/ChatPanel";
 import type { Message } from "@/components/chat/ChatMessage";
 import { useVideoProject } from "@/hooks/useVideoProject";
 import { useTranscription } from "@/hooks/useTranscription";
@@ -11,8 +11,7 @@ import { VideoBlueprintSchema, type DefaultNarration } from "@/types/schema";
 import { ApiKeySetup } from "@/components/setup/ApiKeySetup";
 import { VoicevoxSetup } from "@/components/setup/VoicevoxSetup";
 import { UpdateNotification } from "@/components/update/UpdateNotification";
-import { TranscribePanel } from "@/components/transcribe/TranscribePanel";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ChatDrawer } from "@/components/timeline/ChatDrawer";
 
 // Remotion Player must be loaded client-side only
 const VideoPreview = dynamic(
@@ -21,6 +20,14 @@ const VideoPreview = dynamic(
       default: m.VideoPreview,
     })),
   { ssr: false, loading: () => <PreviewPlaceholder /> }
+);
+
+const TimelinePanel = dynamic(
+  () =>
+    import("@/components/timeline/TimelinePanel").then((m) => ({
+      default: m.TimelinePanel,
+    })),
+  { ssr: false }
 );
 
 function PreviewPlaceholder() {
@@ -44,16 +51,17 @@ export default function Home() {
     changeFormat,
   } = useVideoProject();
 
+  const playerRef = useRef<PlayerRef>(null);
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [needsSetup, setNeedsSetup] = useState(false);
   const [setupChecked, setSetupChecked] = useState(false);
   const [showVoicevoxSetup, setShowVoicevoxSetup] = useState(false);
-  const [activeTab, setActiveTab] = useState("chat");
+  const [chatOpen, setChatOpen] = useState(false);
 
   const transcription = useTranscription();
-  const pendingNarrationRef = useRef<string | null>(null);
 
   // Check if API key is configured (Electron only)
   useEffect(() => {
@@ -170,25 +178,7 @@ export default function Home() {
     [blueprint, messages, setBlueprint]
   );
 
-  const handleApplyToNarration = useCallback(
-    (text: string) => {
-      const content = `以下の文字起こしテキストをナレーションとしてシーンに適用してください:\n\n${text}`;
-      pendingNarrationRef.current = content;
-      setActiveTab("chat");
-    },
-    []
-  );
-
-  // Send pending narration message after tab switch
-  useEffect(() => {
-    if (activeTab === "chat" && pendingNarrationRef.current) {
-      const content = pendingNarrationRef.current;
-      pendingNarrationRef.current = null;
-      handleSend(content);
-    }
-  }, [activeTab, handleSend]);
-
-  // Keyboard shortcuts
+  // Keyboard shortcuts (undo/redo)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "z") {
@@ -242,47 +232,39 @@ export default function Home() {
 
       {/* Main content */}
       <div className="flex flex-1 flex-col">
-        {/* Video Preview - top half */}
+        {/* Video Preview */}
         <div className="flex-1 min-h-0 border-b border-border">
-          <VideoPreview blueprint={blueprint} />
+          <VideoPreview blueprint={blueprint} playerRef={playerRef} />
         </div>
 
-        {/* Bottom Panel - tabbed */}
-        <div className="h-[45%] min-h-[280px]">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex h-full flex-col">
-            <TabsList className="shrink-0 w-full justify-start rounded-none border-b border-border bg-transparent px-2 h-9">
-              <TabsTrigger value="chat" className="text-xs data-[state=active]:bg-muted">
-                チャット
-                {isLoading && (
-                  <span className="ml-1.5 text-[10px] text-muted-foreground animate-pulse">
-                    生成中...
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="transcribe" className="text-xs data-[state=active]:bg-muted">
-                文字起こし
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="chat" className="flex-1 min-h-0 mt-0">
-              <ChatPanel
-                messages={messages}
-                onSend={handleSend}
-                isLoading={isLoading}
-              />
-            </TabsContent>
-            <TabsContent value="transcribe" className="flex-1 min-h-0 mt-0">
-              <TranscribePanel
-                state={transcription.state}
-                onSelectAndTranscribe={transcription.selectAndTranscribe}
-                onUpdateSegment={transcription.updateSegment}
-                onReset={transcription.reset}
-                getFullText={transcription.getFullText}
-                onApplyToNarration={handleApplyToNarration}
-              />
-            </TabsContent>
-          </Tabs>
+        {/* Timeline Panel */}
+        <div className="h-[200px] min-h-[160px] border-t border-border">
+          <TimelinePanel
+            blueprint={blueprint}
+            setBlueprint={setBlueprint}
+            playerRef={playerRef}
+            onToggleChat={() => setChatOpen((prev) => !prev)}
+          />
         </div>
       </div>
+
+      {/* Chat Drawer (side sheet) */}
+      <ChatDrawer
+        open={chatOpen}
+        onOpenChange={setChatOpen}
+        messages={messages}
+        onSend={handleSend}
+        isLoading={isLoading}
+        transcriptionState={transcription.state}
+        onSelectAndTranscribe={transcription.selectAndTranscribe}
+        onUpdateSegment={transcription.updateSegment}
+        onResetTranscription={transcription.reset}
+        getFullText={transcription.getFullText}
+        onApplyToNarration={(text) => {
+          const content = `以下の文字起こしテキストをナレーションとしてシーンに適用してください:\n\n${text}`;
+          handleSend(content);
+        }}
+      />
     </div>
   );
 }

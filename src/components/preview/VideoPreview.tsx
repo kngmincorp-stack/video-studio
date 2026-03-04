@@ -1,31 +1,17 @@
 "use client";
 
-import { useMemo, useState, useCallback } from "react";
+import { useMemo } from "react";
 import { Player, type PlayerRef } from "@remotion/player";
 import type { VideoBlueprint } from "@/types/schema";
 import { VideoComposition } from "@/remotion/VideoComposition";
-import { useRef } from "react";
 
 interface VideoPreviewProps {
   blueprint: VideoBlueprint;
+  playerRef: React.RefObject<PlayerRef | null>;
 }
 
-export function VideoPreview({ blueprint }: VideoPreviewProps) {
-  const playerRef = useRef<PlayerRef>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-
+export function VideoPreview({ blueprint, playerRef }: VideoPreviewProps) {
   const inputProps = useMemo(() => ({ blueprint }), [blueprint]);
-
-  const togglePlay = useCallback(() => {
-    const player = playerRef.current;
-    if (!player) return;
-    if (isPlaying) {
-      player.pause();
-    } else {
-      player.play();
-    }
-    setIsPlaying(!isPlaying);
-  }, [isPlaying]);
 
   // Calculate aspect-ratio for responsive sizing
   const aspectRatio = blueprint.width / blueprint.height;
@@ -38,7 +24,7 @@ export function VideoPreview({ blueprint }: VideoPreviewProps) {
         style={{
           width: isVertical ? "auto" : "100%",
           height: isVertical ? "100%" : "auto",
-          maxHeight: "calc(100% - 48px)",
+          maxHeight: "100%",
           maxWidth: "100%",
           aspectRatio: `${blueprint.width} / ${blueprint.height}`,
         }}
@@ -52,7 +38,6 @@ export function VideoPreview({ blueprint }: VideoPreviewProps) {
           compositionHeight={blueprint.height}
           fps={blueprint.fps}
           style={{ width: "100%", height: "100%" }}
-          controls
           autoPlay={false}
           loop
         />
