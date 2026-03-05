@@ -3,6 +3,7 @@
 import React, { useRef, useCallback, useEffect } from "react";
 import type { PlayerRef } from "@remotion/player";
 import type { VideoBlueprint } from "@/types/schema";
+import type { SelectedClip, ClipboardItem } from "@/types/timeline";
 import { useTimeline } from "@/hooks/useTimeline";
 import { usePlayerSync } from "@/hooks/usePlayerSync";
 import { useTimelineKeyboard } from "@/hooks/useTimelineKeyboard";
@@ -14,14 +15,12 @@ interface TimelinePanelProps {
   blueprint: VideoBlueprint;
   setBlueprint: (next: VideoBlueprint | ((prev: VideoBlueprint) => VideoBlueprint)) => void;
   playerRef: React.RefObject<PlayerRef | null>;
-  onToggleChat: () => void;
 }
 
 export function TimelinePanel({
   blueprint,
   setBlueprint,
   playerRef,
-  onToggleChat,
 }: TimelinePanelProps) {
   const playheadRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -30,9 +29,11 @@ export function TimelinePanel({
     state,
     sceneLayout,
     totalDurationFrames,
+    selectedSceneId,
     setZoom,
     setScroll,
     selectScene,
+    selectClip,
     setPlayhead,
     setPlaying,
     startDrag,
@@ -44,6 +45,18 @@ export function TimelinePanel({
     handleDuplicateScene,
     handleSplitScene,
     handleAddScene,
+    copyClip,
+    cutClip,
+    pasteClip,
+    changeVolume,
+    toggleMute,
+    deleteAudio,
+    changeNarrationVolume,
+    editNarrationText,
+    deleteNarration,
+    handleChangeSpeed,
+    toggleEnabled,
+    rippleDelete,
   } = useTimeline({ blueprint, setBlueprint });
 
   const { seekTo, togglePlay, stop, shuttle } = usePlayerSync({
@@ -60,11 +73,16 @@ export function TimelinePanel({
     seekTo,
     playheadFrame: state.playheadFrame,
     totalDurationFrames,
-    selectedSceneId: state.selectedSceneId,
+    selectedSceneId,
+    selectedClip: state.selectedClip,
     handleDeleteScene,
     handleDuplicateScene,
     setZoom,
     zoomLevel: state.zoomLevel,
+    copyClip,
+    cutClip,
+    pasteClip,
+    toggleMute,
   });
 
   // ─── Drag handling (pointer move/up on document) ───
@@ -82,7 +100,6 @@ export function TimelinePanel({
         const newFrame = Math.max(0, Math.min(totalDurationFrames, drag.startFrame + deltaFrames));
         seekTo(newFrame);
       }
-      // Visual feedback for move/trim is handled via CSS transforms in SceneClip
     };
 
     const handlePointerUp = (e: PointerEvent) => {
@@ -97,12 +114,10 @@ export function TimelinePanel({
         const newDuration = drag.startFrame - deltaFrames;
         handleTrimScene(drag.sceneId, newDuration);
       } else if (drag.type === "move" && drag.sceneId) {
-        // Calculate target position for reorder
-        const threshold = 20; // px minimum movement to trigger reorder
+        const threshold = 20;
         if (Math.abs(deltaX) > threshold) {
           const fromIndex = blueprint.scenes.findIndex((s) => s.id === drag.sceneId);
           if (fromIndex !== -1) {
-            // Find target index based on movement direction
             const targetFrame = drag.startFrame + deltaFrames;
             let toIndex = fromIndex;
             for (let i = 0; i < sceneLayout.length; i++) {
@@ -136,7 +151,7 @@ export function TimelinePanel({
   const handleZoomOut = useCallback(() => setZoom(state.zoomLevel * 1.5), [state.zoomLevel, setZoom]);
   const handleZoomFit = useCallback(() => {
     if (!containerRef.current) return;
-    const containerWidth = containerRef.current.clientWidth - 40; // minus track label width
+    const containerWidth = containerRef.current.clientWidth - 40;
     const fitZoom = totalDurationFrames / containerWidth;
     setZoom(Math.max(0.5, Math.min(10, fitZoom)));
   }, [totalDurationFrames, setZoom]);
@@ -154,8 +169,7 @@ export function TimelinePanel({
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onZoomFit={handleZoomFit}
-        onAddScene={() => handleAddScene(state.selectedSceneId)}
-        onToggleChat={onToggleChat}
+        onAddScene={() => handleAddScene(selectedSceneId)}
       />
       <TimelineContainer
         blueprint={blueprint}
@@ -164,10 +178,13 @@ export function TimelinePanel({
         zoomLevel={state.zoomLevel}
         scrollLeft={state.scrollLeft}
         playheadFrame={state.playheadFrame}
-        selectedSceneId={state.selectedSceneId}
+        selectedSceneId={selectedSceneId}
+        selectedClip={state.selectedClip}
+        clipboard={state.clipboard}
         playheadRef={playheadRef}
         onScroll={setScroll}
         onSelectScene={selectScene}
+        onSelectClip={selectClip}
         onSeek={seekTo}
         onStartDrag={startDrag}
         onDeleteScene={handleDeleteScene}
@@ -175,6 +192,18 @@ export function TimelinePanel({
         onSplitScene={handleSplitScene}
         onAddScene={handleAddScene}
         onZoom={setZoom}
+        onCopy={copyClip}
+        onCut={cutClip}
+        onPaste={pasteClip}
+        onChangeSpeed={handleChangeSpeed}
+        onToggleEnabled={toggleEnabled}
+        onRippleDelete={rippleDelete}
+        onChangeVolume={changeVolume}
+        onToggleMute={toggleMute}
+        onDeleteAudio={deleteAudio}
+        onChangeNarrationVolume={changeNarrationVolume}
+        onEditNarrationText={editNarrationText}
+        onDeleteNarration={deleteNarration}
       />
     </div>
   );

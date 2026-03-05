@@ -11,7 +11,7 @@ import { VideoBlueprintSchema, type DefaultNarration } from "@/types/schema";
 import { ApiKeySetup } from "@/components/setup/ApiKeySetup";
 import { VoicevoxSetup } from "@/components/setup/VoicevoxSetup";
 import { UpdateNotification } from "@/components/update/UpdateNotification";
-import { ChatDrawer } from "@/components/timeline/ChatDrawer";
+import { BottomPanel } from "@/components/timeline/BottomPanel";
 
 // Remotion Player must be loaded client-side only
 const VideoPreview = dynamic(
@@ -20,14 +20,6 @@ const VideoPreview = dynamic(
       default: m.VideoPreview,
     })),
   { ssr: false, loading: () => <PreviewPlaceholder /> }
-);
-
-const TimelinePanel = dynamic(
-  () =>
-    import("@/components/timeline/TimelinePanel").then((m) => ({
-      default: m.TimelinePanel,
-    })),
-  { ssr: false }
 );
 
 function PreviewPlaceholder() {
@@ -59,7 +51,6 @@ export default function Home() {
   const [needsSetup, setNeedsSetup] = useState(false);
   const [setupChecked, setSetupChecked] = useState(false);
   const [showVoicevoxSetup, setShowVoicevoxSetup] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
 
   const transcription = useTranscription();
 
@@ -237,34 +228,27 @@ export default function Home() {
           <VideoPreview blueprint={blueprint} playerRef={playerRef} />
         </div>
 
-        {/* Timeline Panel */}
+        {/* Bottom Panel (Timeline / Chat / Transcription tabs) */}
         <div className="h-[200px] min-h-[160px] border-t border-border">
-          <TimelinePanel
+          <BottomPanel
             blueprint={blueprint}
             setBlueprint={setBlueprint}
             playerRef={playerRef}
-            onToggleChat={() => setChatOpen((prev) => !prev)}
+            messages={messages}
+            onSend={handleSend}
+            isLoading={isLoading}
+            transcriptionState={transcription.state}
+            onSelectAndTranscribe={transcription.selectAndTranscribe}
+            onUpdateSegment={transcription.updateSegment}
+            onResetTranscription={transcription.reset}
+            getFullText={transcription.getFullText}
+            onApplyToNarration={(text) => {
+              const content = `以下の文字起こしテキストをナレーションとしてシーンに適用してください:\n\n${text}`;
+              handleSend(content);
+            }}
           />
         </div>
       </div>
-
-      {/* Chat Drawer (side sheet) */}
-      <ChatDrawer
-        open={chatOpen}
-        onOpenChange={setChatOpen}
-        messages={messages}
-        onSend={handleSend}
-        isLoading={isLoading}
-        transcriptionState={transcription.state}
-        onSelectAndTranscribe={transcription.selectAndTranscribe}
-        onUpdateSegment={transcription.updateSegment}
-        onResetTranscription={transcription.reset}
-        getFullText={transcription.getFullText}
-        onApplyToNarration={(text) => {
-          const content = `以下の文字起こしテキストをナレーションとしてシーンに適用してください:\n\n${text}`;
-          handleSend(content);
-        }}
-      />
     </div>
   );
 }

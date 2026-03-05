@@ -1,17 +1,18 @@
 "use client";
 
 import { useReducer, useMemo, useCallback } from "react";
-import type { VideoBlueprint } from "@/types/schema";
-import type { TimelineState, TimelineAction, DragState, SceneLayoutItem } from "@/types/timeline";
-import { computeSceneLayout, recalcTotalDuration, reorderScenes, trimScene, deleteScene, duplicateScene, splitScene, addScene } from "@/lib/timeline-utils";
+import type { VideoBlueprint, Scene } from "@/types/schema";
+import type { TimelineState, TimelineAction, DragState, SceneLayoutItem, SelectedClip, ClipboardItem } from "@/types/timeline";
+import { computeSceneLayout, recalcTotalDuration, reorderScenes, trimScene, deleteScene, duplicateScene, splitScene, addScene, copyScene, pasteScene, changeSceneSpeed } from "@/lib/timeline-utils";
 
 const initialState: TimelineState = {
   zoomLevel: 2,
   scrollLeft: 0,
-  selectedSceneId: null,
+  selectedClip: null,
   playheadFrame: 0,
   isPlaying: false,
   dragState: null,
+  clipboard: null,
 };
 
 function timelineReducer(state: TimelineState, action: TimelineAction): TimelineState {
@@ -21,7 +22,11 @@ function timelineReducer(state: TimelineState, action: TimelineAction): Timeline
     case "SET_SCROLL":
       return { ...state, scrollLeft: Math.max(0, action.scrollLeft) };
     case "SELECT_SCENE":
-      return { ...state, selectedSceneId: action.sceneId };
+      return { ...state, selectedClip: action.sceneId ? { type: "scene", id: action.sceneId } : null };
+    case "SELECT_CLIP":
+      return { ...state, selectedClip: action.clip };
+    case "SET_CLIPBOARD":
+      return { ...state, clipboard: action.item };
     case "SET_PLAYHEAD":
       return { ...state, playheadFrame: Math.max(0, action.frame) };
     case "SET_PLAYING":
@@ -46,6 +51,9 @@ interface UseTimelineOptions {
 export function useTimeline({ blueprint, setBlueprint }: UseTimelineOptions) {
   const [state, dispatch] = useReducer(timelineReducer, initialState);
 
+  // Backward compat: selectedSceneId derived from selectedClip
+  const selectedSceneId = state.selectedClip?.type === "scene" ? state.selectedClip.id : null;
+
   const sceneLayout = useMemo<SceneLayoutItem[]>(
     () => computeSceneLayout(blueprint.scenes),
     [blueprint.scenes]
@@ -68,6 +76,10 @@ export function useTimeline({ blueprint, setBlueprint }: UseTimelineOptions) {
 
   const selectScene = useCallback((sceneId: string | null) => {
     dispatch({ type: "SELECT_SCENE", sceneId });
+  }, []);
+
+  const selectClip = useCallback((clip: SelectedClip | null) => {
+    dispatch({ type: "SELECT_CLIP", clip });
   }, []);
 
   const setPlayhead = useCallback((frame: number) => {
@@ -119,8 +131,7 @@ export function useTimeline({ blueprint, setBlueprint }: UseTimelineOptions) {
         if (newScenes === prev.scenes) return prev;
         return recalcTotalDuration({ ...prev, scenes: newScenes });
       });
-      // Clear selection if deleted
-      dispatch({ type: "SELECT_SCENE", sceneId: null });
+      dispatch({ type: "SELECT_CLIP", clip: null });
     },
     [setBlueprint]
   );
@@ -155,15 +166,191 @@ export function useTimeline({ blueprint, setBlueprint }: UseTimelineOptions) {
     [setBlueprint]
   );
 
+  // ─── Clipboard operations ───
+
+  const copyClip = useCallback(() => {
+    const clip = state.selectedClip;
+    if (!clip) return;
+    if (clip.type === "scene") {
+      const scene = blueprint.scenes.find((s) => s.id === clip.id);
+      if (scene) {
+        dispatch({ type: "SET_CLIPBOARD", item: { type: "scene", data: structuredClone(scene) } });
+      }
+    }
+  }, [state.selectedClip, blueprint.scenes]);
+
+  const cutClip = useCallback(() => {
+    const clip = state.selectedClip;
+    if (!clip) return;
+    if (clip.type === "scene") {
+      const scene = blueprint.scenes.find((s) => s.id === clip.id);
+      if (scene) {
+        dispatch({ type: "SET_CLIPBOARD", item: { type: "scene", data: structuredClone(scene) } });
+        handleDeleteScene(clip.id);
+      }
+    }
+  }, [state.selectedClip, blueprint.scenes, handleDeleteScene]);
+
+  const pasteClip = useCallback(() => {
+    const cb = state.clipboard;
+    if (!cb) return;
+    if (cb.type === "scene") {
+      setBlueprint((prev) => recalcTotalDuration({
+        ...prev,
+        scenes: pasteScene(prev.scenes, selectedSceneId, cb.data as Scene),
+      }));
+    }
+  }, [state.clipboard, selectedSceneId, setBlueprint]);
+
+  // ─── Audio/Narration operations ───
+
+  const changeVolume = useCallback(
+    (sceneId: string, audioId: string, volume: number, isGlobal: boolean) => {
+      setBlueprint((prev) => {
+        if (isGlobal) {
+          return {
+            ...prev,
+            globalAudio: prev.globalAudio.map((a) =>
+              a.id === audioId ? { ...a, volume } : a
+            ),
+          };
+        }
+        return {
+          ...prev,
+          scenes: prev.scenes.map((s) =>
+            s.id === sceneId
+              ? { ...s, audio: s.audio.map((a) => (a.id === audioId ? { ...a, volume } : a)) }
+              : s
+          ),
+        };
+      });
+    },
+    [setBlueprint]
+  );
+
+  const toggleMute = useCallback(
+    (sceneId: string, audioId: string, isGlobal: boolean) => {
+      setBlueprint((prev) => {
+        if (isGlobal) {
+          return {
+            ...prev,
+            globalAudio: prev.globalAudio.map((a) =>
+              a.id === audioId ? { ...a, volume: a.volume > 0 ? 0 : 1 } : a
+            ),
+          };
+        }
+        return {
+          ...prev,
+          scenes: prev.scenes.map((s) =>
+            s.id === sceneId
+              ? { ...s, audio: s.audio.map((a) => (a.id === audioId ? { ...a, volume: a.volume > 0 ? 0 : 1 } : a)) }
+              : s
+          ),
+        };
+      });
+    },
+    [setBlueprint]
+  );
+
+  const deleteAudio = useCallback(
+    (sceneId: string, audioId: string, isGlobal: boolean) => {
+      setBlueprint((prev) => {
+        if (isGlobal) {
+          return { ...prev, globalAudio: prev.globalAudio.filter((a) => a.id !== audioId) };
+        }
+        return {
+          ...prev,
+          scenes: prev.scenes.map((s) =>
+            s.id === sceneId ? { ...s, audio: s.audio.filter((a) => a.id !== audioId) } : s
+          ),
+        };
+      });
+      dispatch({ type: "SELECT_CLIP", clip: null });
+    },
+    [setBlueprint]
+  );
+
+  const changeNarrationVolume = useCallback(
+    (sceneId: string, volume: number) => {
+      setBlueprint((prev) => ({
+        ...prev,
+        scenes: prev.scenes.map((s) =>
+          s.id === sceneId && s.narration
+            ? { ...s, narration: { ...s.narration, volumeScale: volume } }
+            : s
+        ),
+      }));
+    },
+    [setBlueprint]
+  );
+
+  const editNarrationText = useCallback(
+    (sceneId: string, text: string) => {
+      setBlueprint((prev) => ({
+        ...prev,
+        scenes: prev.scenes.map((s) =>
+          s.id === sceneId && s.narration
+            ? { ...s, narration: { ...s.narration, text } }
+            : s
+        ),
+      }));
+    },
+    [setBlueprint]
+  );
+
+  const deleteNarration = useCallback(
+    (sceneId: string) => {
+      setBlueprint((prev) => ({
+        ...prev,
+        scenes: prev.scenes.map((s) =>
+          s.id === sceneId ? { ...s, narration: undefined } : s
+        ),
+      }));
+      dispatch({ type: "SELECT_CLIP", clip: null });
+    },
+    [setBlueprint]
+  );
+
+  const handleChangeSpeed = useCallback(
+    (sceneId: string, factor: number) => {
+      setBlueprint((prev) => recalcTotalDuration({
+        ...prev,
+        scenes: changeSceneSpeed(prev.scenes, sceneId, factor),
+      }));
+    },
+    [setBlueprint]
+  );
+
+  const toggleEnabled = useCallback(
+    (sceneId: string) => {
+      setBlueprint((prev) => ({
+        ...prev,
+        scenes: prev.scenes.map((s) =>
+          s.id === sceneId ? { ...s, enabled: !(s.enabled ?? true) } : s
+        ),
+      }));
+    },
+    [setBlueprint]
+  );
+
+  const rippleDelete = useCallback(
+    (sceneId: string) => {
+      handleDeleteScene(sceneId);
+    },
+    [handleDeleteScene]
+  );
+
   return {
     state,
     dispatch,
     sceneLayout,
     totalDurationFrames,
+    selectedSceneId,
     // Dispatch wrappers
     setZoom,
     setScroll,
     selectScene,
+    selectClip,
     setPlayhead,
     setPlaying,
     startDrag,
@@ -176,5 +363,20 @@ export function useTimeline({ blueprint, setBlueprint }: UseTimelineOptions) {
     handleDuplicateScene,
     handleSplitScene,
     handleAddScene,
+    // Clipboard
+    copyClip,
+    cutClip,
+    pasteClip,
+    // Audio/Narration
+    changeVolume,
+    toggleMute,
+    deleteAudio,
+    changeNarrationVolume,
+    editNarrationText,
+    deleteNarration,
+    // Speed/Enable
+    handleChangeSpeed,
+    toggleEnabled,
+    rippleDelete,
   };
 }

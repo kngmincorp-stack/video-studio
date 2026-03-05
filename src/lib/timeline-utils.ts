@@ -195,6 +195,7 @@ export function addScene(
     images: [],
     audio: [],
     transition: { type: "fade", durationFrames: 15 },
+    enabled: true,
   };
 
   if (afterSceneId === null) {
@@ -206,6 +207,37 @@ export function addScene(
   const result = [...scenes];
   result.splice(idx + 1, 0, newScene);
   return result;
+}
+
+/** Copy a scene with new IDs */
+export function copyScene(scene: Scene): Scene {
+  return {
+    ...structuredClone(scene),
+    id: crypto.randomUUID(),
+    title: scene.title ? `${scene.title} (コピー)` : undefined,
+  };
+}
+
+/** Paste a copied scene after the given sceneId (or at end if null) */
+export function pasteScene(scenes: Scene[], afterSceneId: string | null, copied: Scene): Scene[] {
+  const newScene = copyScene(copied);
+  if (afterSceneId === null) {
+    return [...scenes, newScene];
+  }
+  const idx = scenes.findIndex((s) => s.id === afterSceneId);
+  if (idx === -1) return [...scenes, newScene];
+  const result = [...scenes];
+  result.splice(idx + 1, 0, newScene);
+  return result;
+}
+
+/** Change scene speed by dividing durationFrames by factor */
+export function changeSceneSpeed(scenes: Scene[], sceneId: string, factor: number): Scene[] {
+  return scenes.map((s) =>
+    s.id === sceneId
+      ? { ...s, durationFrames: Math.max(MIN_DURATION_FRAMES, Math.round(s.durationFrames / factor)) }
+      : s
+  );
 }
 
 /** Recalculate totalDurationFrames from scenes */

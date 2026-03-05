@@ -1,18 +1,33 @@
 // Timeline UI state types — not persisted, not part of Blueprint
 
+export type ClipType = "scene" | "audio" | "narration";
+
+export interface SelectedClip {
+  type: ClipType;
+  id: string;
+  parentSceneId?: string;
+}
+
+export interface ClipboardItem {
+  type: ClipType;
+  data: unknown;
+}
+
 export interface TimelineState {
   /** Frames per pixel. Lower = more zoomed in. Range: 0.5–10 */
   zoomLevel: number;
   /** Horizontal scroll offset in pixels */
   scrollLeft: number;
-  /** Currently selected scene ID */
-  selectedSceneId: string | null;
+  /** Currently selected clip (scene, audio, or narration) */
+  selectedClip: SelectedClip | null;
   /** Current playhead position in frames */
   playheadFrame: number;
   /** Whether playback is active */
   isPlaying: boolean;
   /** Active drag operation */
   dragState: DragState | null;
+  /** Clipboard for copy/paste */
+  clipboard: ClipboardItem | null;
 }
 
 export interface DragState {
@@ -39,6 +54,8 @@ export type TimelineAction =
   | { type: "SET_ZOOM"; zoomLevel: number }
   | { type: "SET_SCROLL"; scrollLeft: number }
   | { type: "SELECT_SCENE"; sceneId: string | null }
+  | { type: "SELECT_CLIP"; clip: SelectedClip | null }
+  | { type: "SET_CLIPBOARD"; item: ClipboardItem | null }
   | { type: "SET_PLAYHEAD"; frame: number }
   | { type: "SET_PLAYING"; isPlaying: boolean }
   | { type: "START_DRAG"; dragState: DragState }

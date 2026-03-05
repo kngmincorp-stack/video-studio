@@ -171,6 +171,7 @@ export const SceneSchema = z.object({
   audio: z.array(AudioElementSchema).default([]),
   narration: NarrationSchema.optional(),
   transition: TransitionSchema.default({ type: "fade", durationFrames: 15 }),
+  enabled: z.boolean().default(true),
   // Scene-type specific data
   listItems: z.array(z.string()).optional(), // for "list" type
   comparisonLeft: z.string().optional(), // for "comparison" type
@@ -266,6 +267,7 @@ export function createEmptyBlueprint(
         images: [],
         audio: [],
         transition: { type: "fade", durationFrames: 15 },
+        enabled: true,
       },
     ],
     globalAudio: [],

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import type { SelectedClip } from "@/types/timeline";
 
 interface UseTimelineKeyboardOptions {
   togglePlay: () => void;
@@ -9,10 +10,15 @@ interface UseTimelineKeyboardOptions {
   playheadFrame: number;
   totalDurationFrames: number;
   selectedSceneId: string | null;
+  selectedClip: SelectedClip | null;
   handleDeleteScene: (sceneId: string) => void;
   handleDuplicateScene: (sceneId: string) => void;
   setZoom: (zoomLevel: number) => void;
   zoomLevel: number;
+  copyClip: () => void;
+  cutClip: () => void;
+  pasteClip: () => void;
+  toggleMute?: (sceneId: string, audioId: string, isGlobal: boolean) => void;
   /** Set to false to disable shortcuts (e.g., when chat input is focused) */
   enabled?: boolean;
 }
@@ -24,10 +30,15 @@ export function useTimelineKeyboard({
   playheadFrame,
   totalDurationFrames,
   selectedSceneId,
+  selectedClip,
   handleDeleteScene,
   handleDuplicateScene,
   setZoom,
   zoomLevel,
+  copyClip,
+  cutClip,
+  pasteClip,
+  toggleMute,
   enabled = true,
 }: UseTimelineKeyboardOptions) {
   useEffect(() => {
@@ -73,6 +84,34 @@ export function useTimelineKeyboard({
           if ((e.ctrlKey || e.metaKey) && selectedSceneId) {
             e.preventDefault();
             handleDuplicateScene(selectedSceneId);
+          }
+          break;
+
+        case "KeyC":
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            copyClip();
+          }
+          break;
+
+        case "KeyX":
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            cutClip();
+          }
+          break;
+
+        case "KeyV":
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            pasteClip();
+          }
+          break;
+
+        case "KeyM":
+          if (selectedClip && (selectedClip.type === "audio") && toggleMute && selectedClip.parentSceneId) {
+            e.preventDefault();
+            toggleMute(selectedClip.parentSceneId, selectedClip.id, false);
           }
           break;
 
@@ -124,9 +163,14 @@ export function useTimelineKeyboard({
     playheadFrame,
     totalDurationFrames,
     selectedSceneId,
+    selectedClip,
     handleDeleteScene,
     handleDuplicateScene,
     setZoom,
     zoomLevel,
+    copyClip,
+    cutClip,
+    pasteClip,
+    toggleMute,
   ]);
 }
